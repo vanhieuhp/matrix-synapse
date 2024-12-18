@@ -1,25 +1,14 @@
-# Configuration file for Synapse.
-#
-# This is a YAML file: see [1] for a quick introduction. Note in particular
-# that *indentation is important*: all the elements of a list or dictionary
-# should have the same indentation.
-#
-# [1] https://docs.ansible.com/ansible/latest/reference_appendices/YAMLSyntax.html
-#
-# For more information on how to configure Synapse, including a complete accounting of
-# each option, go to docs/usage/configuration/config_documentation.md or
-# https://element-hq.github.io/synapse/latest/usage/configuration/config_documentation.html
 server_name: "my.matrix.host"
+http_port: 8008
+
+worker: true
+main_server: "my.matrix.host"
+
 pid_file: /data/homeserver.pid
-listeners:
-  - port: 8008
-    tls: false
-    type: http
-    x_forwarded: true
-#    bind_addresses: ['::1', '127.0.0.1']
-    resources:
-      - names: [client, federation]
-        compress: false
+
+# Worker-specific settings, including event processing, etc.
+event_processing:
+  enabled: true
 
 database:
   name: "psycopg2"
@@ -73,3 +62,25 @@ auto_accept_invites:
   enabled: true
   only_for_direct_messages: true
   only_from_local_users: true
+
+# Redis configuration for event processing and caching
+redis:
+  enabled: true
+  host: "redis"
+  port: 6379
+  db: 0
+
+# Worker-specific settings (on the main server)
+federation:
+  enable_federation: true
+  workers: true
+# Add a random shared secret to authenticate traffic.
+#worker_replication_secret: ""
+
+# Enable background tasks like room versioning, cleanup, etc.
+background_tasks_enabled: true
+
+instance_map:
+  main:
+    host: 'localhost'
+    port: 9093

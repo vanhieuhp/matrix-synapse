@@ -1,0 +1,187 @@
+name: "synapse"
+
+services:
+  synapse:
+    container_name: synapse
+    image: docker.io/matrixdotorg/synapse:v1.121.1
+    # Since synapse does not retry to connect to the database, restart upon
+    # failure
+    restart: unless-stopped
+    # See the readme for a full documentation of the environment settings
+    environment:
+      # synapse_config file location - be sure to create one first!
+      # https://github.com/matrix-org/synapse/tree/develop/docker#generating-a-configuration-file
+      - SYNAPSE_CONFIG_PATH=/data/homeserver.yaml
+      - UID=1000
+      - GID=1000
+    volumes:
+      # You may either store all the files in a local folder
+      - ./synapse_config:/data
+      # .. or you may split this between different storage points
+      # - ./files:/data
+      # - /path/to/ssd:/data/uploads
+      # - /path/to/large_hdd:/data/media
+    depends_on:
+      # We're going to use an external database as it's more performant for multiple
+      # users
+      synapse-db:
+        condition: service_healthy
+
+    networks:
+      - network1
+    # Uncomment if not using a proxy. In order to expose Synapse, remove one of the following, 
+    # you might for instance expose the TLS port directly:
+    ports:
+      - 8448:8448/tcp
+      - 8008:8008/tcp
+
+    # ... or use a reverse proxy, here is an example for traefik:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.synapse.entrypoints=http"
+      - "traefik.http.routers.synapse.rule=Host(`matrix.yourdomain.com`)"
+      - "traefik.http.middlewares.synapse-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.synapse.middlewares=synapse-https-redirect"
+      - "traefik.http.routers.synapse-secure.entrypoints=https"
+      - "traefik.http.routers.synapse-secure.rule=Host(`matrix.yourdomain.com`)"
+      - "traefik.http.routers.synapse-secure.tls=true"
+      - "traefik.http.routers.synapse-secure.service=synapse"
+      - "traefik.http.services.synapse.loadbalancer.server.port=8008"
+      - "traefik.docker.network=proxy"
+    healthcheck:
+      test: [ "CMD", "curl", "-fSs", "http://localhost:8008/health" ]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  synapse-ui:
+    container_name: synapse-ui
+    image: awesometechnologies/synapse-admin:master
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    #    volumes:
+    #      - ./synapse_config/synapse-ui-synapse_config.json:/app/synapse_config.json:ro
+    depends_on:
+      - synapse
+    networks:
+      - network1
+
+  synapse-db:
+    image: docker.io/postgres:15-alpine
+    container_name: synapse-db
+    restart: unless-stopped
+    # Change password below, of course!
+    environment:
+      - POSTGRES_USER=synapse_user
+      - POSTGRES_PASSWORD=xF2oDmvPLXhN8yivmI7PhPLozBl0ZgfQsjnd55yH # CHANGE ME!
+      - POSTGRES_DB=synapse
+      # ensure the database gets created correctly
+      # https://github.com/matrix-org/synapse/blob/master/docs/postgres.md#set-up-database
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - synapse-db:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    networks:
+      - network1
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready"]
+
+      interval: 30s
+      timeout: 60s
+      retries: 5
+      start_period: 80s
+
+  #  element:
+  #    image: vectorim/element-web:v1.11.87
+  #    container_name: element
+  #    restart: unless-stopped
+  #    volumes:
+  #      - ./synapse_config/element-synapse_config.json:/app/synapse_config.json
+  #    networks:
+  #      - network1
+  #    ports:
+  #      - 80:80
+  #    depends_on:
+  #      - synapse
+
+  redis:
+    image: redis/redis-stack-server:7.4.0-v0
+    container_name: synapse-redis
+#    ports:
+#      - "6379:6379"
+    volumes:
+      - redis:/data
+    restart: on-failure
+    networks:
+      - network1
+    healthcheck:
+      test: [ "CMD", "redis-cli", "--raw", "incr", "ping" ]
+      timeout: 10s
+      retries: 3
+      interval: 15s
+      start_period: 30s
+
+  nginx:
+    image: nginx:stable-perl
+    container_name: synapse-nginx
+    volumes:
+      - ./nginx_config:/etc/nginx/conf.d
+    ports:
+      - "80:80"  # Map port 80 in container to 8080 on your host
+    networks:
+      - network1
+    healthcheck:
+      test: ["CMD", "service", "nginx", "status"]
+      timeout: 10s
+      retries: 3
+      interval: 15s
+      start_period: 30s
+
+  worker1:
+    container_name: worker1
+    image: docker.io/matrixdotorg/synapse:v1.121.1
+    restart: unless-stopped
+    environment:
+      - SYNAPSE_CONFIG_PATH=/data/homeserver.yaml
+      - UID=1000
+      - GID=1000
+    volumes:
+      - ./work1_config:/data
+    depends_on:
+      synapse-db:
+        condition: service_healthy
+
+    networks:
+      - network1
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.synapse.entrypoints=http"
+      - "traefik.http.routers.synapse.rule=Host(`matrix.yourdomain.com`)"
+      - "traefik.http.middlewares.synapse-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.synapse.middlewares=synapse-https-redirect"
+      - "traefik.http.routers.synapse-secure.entrypoints=https"
+      - "traefik.http.routers.synapse-secure.rule=Host(`matrix.yourdomain.com`)"
+      - "traefik.http.routers.synapse-secure.tls=true"
+      - "traefik.http.routers.synapse-secure.service=synapse"
+      - "traefik.http.services.synapse.loadbalancer.server.port=8008"
+      - "traefik.docker.network=proxy"
+    healthcheck:
+      test: [ "CMD", "curl", "-fSs", "http://localhost:8008/health" ]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+networks:
+  network1:
+    name: docker_network
+    external: true
+
+volumes:
+  synapse-db:
+    name: synapse-db
+  redis:
+    name: synapse-redis
