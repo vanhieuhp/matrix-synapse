@@ -1,0 +1,75 @@
+# Configuration file for Synapse.
+#
+# This is a YAML file: see [1] for a quick introduction. Note in particular
+# that *indentation is important*: all the elements of a list or dictionary
+# should have the same indentation.
+#
+# [1] https://docs.ansible.com/ansible/latest/reference_appendices/YAMLSyntax.html
+#
+# For more information on how to configure Synapse, including a complete accounting of
+# each option, go to docs/usage/configuration/config_documentation.md or
+# https://element-hq.github.io/synapse/latest/usage/configuration/config_documentation.html
+server_name: "my.matrix.host"
+pid_file: /data/homeserver.pid
+listeners:
+  - port: 8008
+    tls: false
+    type: http
+    x_forwarded: true
+#    bind_addresses: ['::1', '127.0.0.1']
+    resources:
+      - names: [client, federation]
+        compress: false
+
+database:
+  name: "psycopg2"
+  args:
+    user: synapse_user
+    password: xF2oDmvPLXhN8yivmI7PhPLozBl0ZgfQsjnd55yH
+    database: synapse
+    host: synapse-db
+    port: 5432
+    cp_min: 1
+    cp_max: 5
+
+## Ratelimiting ##
+rc_login:
+ address:
+   per_second: 1
+   burst_count: 30
+ account:
+   per_second: 1
+   burst_count: 30
+ failed_attempts:
+   per_second: 1
+   burst_count: 30
+
+log_config: "/data/my.matrix.host.log.config"
+media_store_path: /data/media_store
+registration_shared_secret: "b@y7=YsAo@F7YHawiE1PnyO4~hKjM:vbc.xDPKmiDi,+&FVxky"
+report_stats: true
+macaroon_secret_key: "k,3NVV~&Wgc7VKeMpK3Wvv@B#Wn~gFdbNxG1Ye;BeS;0pMY,R:"
+form_secret: "3WLqZkUQa;6hPyj*YRCZekD&jn^P6uNtjQJocILim;M@HoqRFO"
+signing_key_path: "/data/my.matrix.host.signing.key"
+trusted_key_servers:
+  - server_name: "matrix.org"
+
+#encryption_enabled_by_default_for_room_type: invite
+
+
+enable_registration: true #added for use element
+suppress_key_server_warning: true #added for use element
+enable_registration_without_verification: true #added for use element
+# vim:ft=yaml
+
+user_directory:
+  enabled: true
+  search_all_users: true
+  prefer_local_users: true
+  show_locked_users: true
+
+
+auto_accept_invites:
+  enabled: true
+  only_for_direct_messages: true
+  only_from_local_users: true
